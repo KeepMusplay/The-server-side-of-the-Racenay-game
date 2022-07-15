@@ -16,9 +16,9 @@ namespace ServerRacenay
         {
             string host = "localhost";
             int port = 3306;
-            string database = "host1832718";
+            string database = "name_database";
             string username = "root";
-            string password = "host1832718";
+            string password = "password_database";
 
             return (res = DBMMySQLUtils.GetDBConnection(host, port, database, username, password));
         }
