@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using MySql.Data;
 using MySql.Data.MySqlClient;
 
-namespace Dedicate_Server_Unity3d_LastVersion
+namespace Racenay
 {
     internal class CloserConnection
     {
