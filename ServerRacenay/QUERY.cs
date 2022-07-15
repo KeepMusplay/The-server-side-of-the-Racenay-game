@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Data.Common;
 using MySql.Data.MySqlClient;
@@ -12,13 +13,15 @@ namespace ServerRacenay
     // _SORT_STRING example: "WHERE id = @id"
     class QUERY
     {
-        private static object locked = new object();
+        //private static object locked = new object();
 
-        public static int INSERT(string _table, string[] _parameters, string[] _values, string _SORT_STRING)
+        public static void INSERT(string _table, string[] _parameters, string[] _values, string _SORT_STRING)
         {
-            lock (locked)
+            try
             {
-                if (_table == "" || _parameters.Length == 0 || _values.Length == 0) return -1;
+                //lock (locked)
+                //{
+                if (_table == "" || _parameters.Length == 0 || _values.Length == 0) return;
                 string parameters = " (?";
                 for (int i = 0; i < _parameters.Length; i++)
                 {
@@ -34,7 +37,9 @@ namespace ServerRacenay
                 }
 
                 MySqlCommand cmd = new MySqlCommand();
-                cmd.Connection = DBUtils.res;
+
+                cmd.CommandTimeout = 200;
+                (cmd.Connection = DBUtils.GetDBConnection()).Open();
                 cmd.CommandText = "INSERT INTO " + _table + parameters.Replace("?", "") + "VALUES " + parameters.Replace("?", "@").Replace("`", "") + _SORT_STRING;
 
                 for (int j = 0; j < _values.Length; j++)
@@ -46,20 +51,30 @@ namespace ServerRacenay
                     }
                     else
                     {
-                        cmd.Parameters.AddWithValue(("@" + _parameters[j]), _values[j]);
+                        cmd.Parameters.AddWithValue(("@" + _parameters[j]), _values[j] == null ? "0" : _values[j]);
                     }
                 }
 
                 cmd.Prepare();
-                return cmd.ExecuteNonQuery();
+                cmd.ExecuteNonQuery();
+                cmd.Connection.Close();
+                cmd.Connection.Dispose();
+                //}
+            }
+            catch (Exception _ex)
+            {
+                Console.WriteLine(_ex.Message);
+                Console.WriteLine(_ex.StackTrace);
             }
         }
-        
-        public static int UPDATE(string _table, string[] _parameters, string[] _values, string _SORT_STRING)
+
+        public static void UPDATE(string _table, string[] _parameters, string[] _values, string _SORT_STRING)
         {
-            lock (locked)
+            try
             {
-                if (_table == "" || _parameters.Length == 0 || _values.Length == 0) return -1;
+                //lock (locked)
+                //{
+                if (_table == "" || _parameters.Length == 0 || _values.Length == 0) return;
                 string parameters = "";
                 for (int i = 0; i < _parameters.Length; i++)
                 {
@@ -74,7 +89,9 @@ namespace ServerRacenay
                 }
 
                 MySqlCommand cmd = new MySqlCommand();
-                cmd.Connection = DBUtils.res;
+
+                cmd.CommandTimeout = 200;
+                (cmd.Connection = DBUtils.GetDBConnection()).Open();
                 cmd.CommandText = "UPDATE " + _table + " SET " + parameters + _SORT_STRING;
                 if (_SORT_STRING != "")
                 {
@@ -87,7 +104,7 @@ namespace ServerRacenay
                         }
                         else
                         {
-                            cmd.Parameters.AddWithValue(lastParameter, _values[_values.Length - 1]);
+                            cmd.Parameters.AddWithValue(lastParameter, (_values[_values.Length - 1] == null ? "0" : _values[_values.Length - 1]));
                         }
                     }
                 }
@@ -101,12 +118,20 @@ namespace ServerRacenay
                     }
                     else
                     {
-                        cmd.Parameters.AddWithValue(("@" + _parameters[j]), _values[j]);
+                        cmd.Parameters.AddWithValue(("@" + _parameters[j]), (_values[j] == null ? "0" : _values[j]));
                     }
                 }
 
                 cmd.Prepare();
-                return cmd.ExecuteNonQuery();
+                cmd.ExecuteNonQuery();
+                cmd.Connection.Close();
+                cmd.Connection.Dispose();
+                //}
+            }
+            catch (Exception _ex)
+            {
+                Console.WriteLine(_ex.Message);
+                Console.WriteLine(_ex.StackTrace);
             }
         }
 
@@ -114,8 +139,13 @@ namespace ServerRacenay
         { // _parameters for SELECT
           // _values for WHERE
 
-            lock (locked)
+            cmd = new MySqlCommand();
+
+            cmd.CommandTimeout = 200;
+            try
             {
+                //lock (locked)
+                //{
                 string parameters;
                 if ("*".Equals(_parameters[0][0]))
                 {
@@ -128,8 +158,16 @@ namespace ServerRacenay
 
                     parameters = String.Join(", ", _parameters);
                 }
-                cmd = new MySqlCommand();
-                cmd.Connection = DBUtils.res;
+
+                (cmd.Connection = DBUtils.GetDBConnection()).Open();
+                var linkConnection = cmd.Connection;
+
+
+                Thread thread = new Thread(() => CloserConnection.Close(linkConnection, 25_000));
+                thread.IsBackground = true;
+                thread.Start();
+
+
                 cmd.CommandText = "SELECT " + parameters + " FROM " + _table + " " + _SORT_STRING;
 
                 if (_SORT_STRING != "")
@@ -155,27 +193,44 @@ namespace ServerRacenay
 
                     for (int j = 0; j < _values.Length; j++)
                     {
-                        if ("0".Equals(_values[j][0]))
+                        try
                         {
-                            int number = int.Parse(_values[j]);
-                            cmd.Parameters.AddWithValue(arguments[j], number);
+                            if ("0".Equals(_values[j][0]))
+                            {
+                                int number = int.Parse(_values[j]);
+                                cmd.Parameters.AddWithValue(arguments[j], number);
+                                continue;
+                            }
                         }
-                        else
-                        {
-                            cmd.Parameters.AddWithValue(arguments[j], _values[j]);
-                        }
+                        catch { } 
+
+                        cmd.Parameters.AddWithValue(arguments[j], (_values[j] == null ? "0" : _values[j]));
                     }
                 }
+                // Console.WriteLine(cmd.CommandText);
                 cmd.Prepare();
+                return;
+                //}
             }
+            catch (Exception _ex)
+            {
+                Console.WriteLine(_ex.Message);
+                Console.WriteLine(_ex.StackTrace);
+            }
+
+            return;
         }
 
-        public static int DELETE(string _table, string[] _values, string _SORT_STRING)
+        public static void DELETE(string _table, string[] _values, string _SORT_STRING)
         { // _values for WHERE
-            lock (locked)
+            try
             {
+                //lock (locked)
+                //{
                 MySqlCommand cmd = new MySqlCommand();
-                cmd.Connection = DBUtils.res;
+
+                cmd.CommandTimeout = 200;
+                (cmd.Connection = DBUtils.GetDBConnection()).Open();
                 cmd.CommandText = "DELETE FROM " + _table + " " + _SORT_STRING;
 
                 if (_SORT_STRING != "")
@@ -208,37 +263,20 @@ namespace ServerRacenay
                         }
                         else
                         {
-                            cmd.Parameters.AddWithValue(arguments[j], _values[j]);
+                            cmd.Parameters.AddWithValue(arguments[j], (_values[j] == null ? "0" : _values[j]));
                         }
                     }
                 }
                 cmd.Prepare();
-                return cmd.ExecuteNonQuery();
-            }
-        }
-
-        public static int DELETE(string _table)
-        { // _values for WHERE
-
-            lock (locked)
-            {
-                MySqlCommand cmd = new MySqlCommand();
-                cmd.Connection = DBUtils.res;
-                cmd.CommandText = "DELETE FROM " + _table;
-                cmd.Prepare();
-                return cmd.ExecuteNonQuery();
-            }
-        }
-
-        public static void TRUNCATE(string _table)
-        {
-            lock (locked)
-            {
-                MySqlCommand cmd = new MySqlCommand();
-                cmd.Connection = DBUtils.res;
-                cmd.CommandText = "TRUNCATE TABLE " + _table;
-                cmd.Prepare();
                 cmd.ExecuteNonQuery();
+                cmd.Connection.Close();
+                cmd.Connection.Dispose();
+                //}
+            }
+            catch (Exception _ex)
+            {
+                Console.WriteLine(_ex.Message);
+                Console.WriteLine(_ex.StackTrace);
             }
         }
     }
