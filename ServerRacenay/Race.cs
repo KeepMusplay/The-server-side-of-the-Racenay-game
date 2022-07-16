@@ -38,7 +38,7 @@ namespace ServerRacenay
 
 
 
-        public int Status; // 0 - waiting, 1 - started rice, 2 - rice, 3 - rice completed
+        public int Status; // 0 - waiting, 1 - started race, 2 - race, 3 - race completed
 
 
 
