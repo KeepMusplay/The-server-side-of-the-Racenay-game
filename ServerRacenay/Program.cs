@@ -1,4 +1,6 @@
-﻿using System;
+// Author and developer  Vadim Sabitov
+
+using System;
 using System.IO;
 using System.Text;
 using System.Runtime.Serialization.Formatters.Binary;
